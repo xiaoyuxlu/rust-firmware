@@ -1,0 +1,18 @@
+[package]
+name = "rust-vsock-payload"
+version = "0.1.0"
+authors = ["Xiaoyu Lu <xiaoyux.lu@intel.com>"]
+edition = "2018"
+
+[dependencies]
+log = "0.4.13"
+rust-ipl-log = { path = "../rust-ipl-log" }
+r-uefi-pi = { path = "../r-uefi-pi" }
+uefi-pi = { path = "../uefi-pi" }
+fw-pci = { path = "../fw-pci" }
+
+linked_list_allocator = "0.8.11"
+bitflags = "1.2.1"
+volatile = "0.2"
+conquer-once = { version = "0.3.2", default-features = false }
+atomic_refcell = "0.1.7"
