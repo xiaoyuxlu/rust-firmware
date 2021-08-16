@@ -26,6 +26,7 @@ pub fn init_vsock_device() {
     log::info!("vsock device init success. cid is {}\n", cid);
 }
 
+#[no_mangle]
 extern "C" fn get_vsock_device_call() -> u64 {
     return VSOCK_DEVICE.try_get().expect("get vsock device failed") as *const VirtioVsockDevice
         as u64;

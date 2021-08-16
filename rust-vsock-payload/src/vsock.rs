@@ -8,7 +8,12 @@
 #[derive(Debug)]
 pub struct SocketError;
 
+use crate::virtio::AsBuf;
+use crate::virtio_vsock_device::VirtioVsockDevice;
+use crate::virtio_vsock_device::VirtioVsockHdr;
+use crate::virtio_vsock_device::VIRTIO_VSOCK_OP_RW;
 use crate::vsock_impl;
+use crate::vsock_impl::get_vsock_device;
 use core::fmt;
 
 #[derive(Copy, Clone, PartialEq, Eq)]
@@ -71,6 +76,7 @@ impl Drop for VsockListener {
 pub struct VsockStream {
     dst_addr: VsockAddr,
     src_addr: VsockAddr,
+    vsock_device: &'static VirtioVsockDevice<'static>,
 }
 
 impl VsockStream {
@@ -80,13 +86,16 @@ impl VsockStream {
         let vsock_device = vsock_impl::get_vsock_device();
 
         let src_addr = VsockAddr::new(vsock_device.get_cid(), VsockStream::get_free_port());
-        let dst_addr = addr.clone();
 
         vsock_device
             .connect(addr.cid(), addr.port(), src_addr.cid(), src_addr.port())
             .map_err(|_| SocketError);
 
-        Err(SocketError)
+        Ok(VsockStream {
+            dst_addr: *addr,
+            src_addr,
+            vsock_device,
+        })
     }
 
     pub fn connect_with_cid_port(cid: u64, port: u32) -> Result<Self, SocketError> {
@@ -94,11 +103,38 @@ impl VsockStream {
     }
 
     pub fn read(&mut self, buf: &mut [u8]) -> Result<usize, SocketError> {
-        todo!()
+        let mut package_header = VirtioVsockHdr::default();
+        let recvn = self
+            .vsock_device
+            .recv(&[package_header.as_buf_mut(), buf])
+            .map_err(|_| SocketError)?;
+        if package_header.op != VIRTIO_VSOCK_OP_RW {
+            return Err(SocketError);
+        }
+        Ok(package_header.get_len() as usize)
     }
 
     pub fn write(&mut self, buf: &[u8]) -> Result<usize, SocketError> {
-        todo!()
+        let mut package_header = VirtioVsockHdr::create_header(
+            self.src_addr.cid(),
+            self.dst_addr.cid(),
+            self.src_addr.port(),
+            self.dst_addr.port(),
+            VIRTIO_VSOCK_OP_RW,
+            1500,
+        );
+
+        package_header.set_len(buf.len() as u32);
+
+        if self.vsock_device.can_send() {
+            let len = self
+                .vsock_device
+                .send(&[package_header.as_buf(), buf])
+                .map_err(|err| SocketError)?;
+            Ok(len)
+        } else {
+            Err(SocketError)
+        }
     }
 
     fn get_free_port() -> u32 {

@@ -5,6 +5,8 @@ members = [
     "rust-uefi-payload",
     "rust-firmware-tool",
     "build-fsp",
+    "rust-vsock-payload",
+    "fw-pci",
     ]
 
 default-members = ["rust-ipl", "rust-uefi-payload"]

@@ -33,6 +33,7 @@ pub extern "win64" fn _start(hob_list: *const u8, _reserved_param: usize) -> ! {
     let hob = uefi_pi::hob_lib::HobList::new(hob_list)
         .find(|hob| -> bool { hob_utils::is_heap_hob(hob) })
         .unwrap();
+    // half memory allocation for heap, and half for DMA
     if let uefi_pi::hob_lib::HobEnums::MemoryAllocation(memory_allocation) = hob {
         let half_size = (memory_allocation.alloc_descriptor.memory_length / 2) as usize;
         let memory_base_address = memory_allocation.alloc_descriptor.memory_base_address;
@@ -193,28 +194,14 @@ fn _test_block_device() {
 }
 
 fn test_vsock_device() {
-    // let vsock_device_id = 2;
-    // let pci_device = fw_pci::PciDevice::new(0, vsock_device_id, 0);
-    // let virtio_transport = VirtioPciTransport::new(pci_device);
-    // let mut virtio_vsock_device = VirtioVsockDevice::new(Box::new(virtio_transport)).unwrap();
-    // virtio_vsock_device.init().unwrap();
-    // let cid = virtio_vsock_device.get_cid();
-    // log::info!("virtio_vsock_device cid is {}\n", cid);
-
-    // virtio_vsock_device.test_client();
-
-    // test_vsock_device_server(&mut virtio_vsock_device);
     let vsock_device = device::get_vsock_device();
     let cid = vsock_device.get_cid();
     log::info!("virtio_vsock_device cid is {}\n", cid);
 
-    // // vsock_device.test_server();
-    vsock_device.test_client();
+    use rust_vsock_payload::vsock::{VsockAddr, VsockStream};
 
-    // use rust_vsock_payload::vsock::{VsockAddr, VsockStream};
-
-    // let stream = VsockStream::connect(&VsockAddr::new(2, 1234)).expect("connect error");
-    // stream.write(b"This is from client").expect("write error");
+    let mut stream = VsockStream::connect(&VsockAddr::new(2, 1234)).expect("connect error");
+    stream.write(b"This is from client").expect("write error");
 
     log::info!("virtio_vsock_device test done\n");
 }

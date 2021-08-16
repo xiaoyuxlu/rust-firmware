@@ -108,7 +108,7 @@ impl<'a> VirtioVsockDevice<'a> {
     /// Whether can send packet.
     pub fn can_send(&self) -> bool {
         let tx = self.tx.borrow();
-        tx.available_desc() >= 1
+        tx.available_desc() >= 2
     }
 
     /// Whether can receive packet.
@@ -190,8 +190,14 @@ impl<'a> VirtioVsockDevice<'a> {
         let mut rx = self.rx.borrow_mut();
         rx.add(&[], &[response_header.as_buf_mut()])?;
 
-        let request_header =
-            VirtioVsockHdr::create_request_header(src_cid, dst_cid, src_port, dst_port, 1500);
+        let request_header = VirtioVsockHdr::create_header(
+            src_cid,
+            dst_cid,
+            src_port,
+            dst_port,
+            VIRTIO_VSOCK_OP_REQUEST,
+            1500,
+        );
 
         let _res = self.send(&[request_header.as_buf()])?;
         log::info!("connecting after send..\n");
@@ -350,11 +356,12 @@ impl VirtioVsockHdr {
         self.len
     }
 
-    pub fn create_request_header(
+    pub fn create_header(
         src_cid: u64,
         dst_cid: u64,
         src_port: u32,
         dst_port: u32,
+        op: u16,
         buf_alloc: u32,
     ) -> Self {
         VirtioVsockHdr {
@@ -364,10 +371,13 @@ impl VirtioVsockHdr {
             dst_port,
             len: 0,
             type_: VSOCK_STREAM,
-            op: VIRTIO_VSOCK_OP_REQUEST,
+            op,
             flags: 0,
             buf_alloc,
             fwd_cnt: 0,
         }
+    }
+    pub fn set_len(&mut self, len: u32) {
+        self.len = len
     }
 }
