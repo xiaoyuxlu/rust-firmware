@@ -12,9 +12,13 @@ use crate::virtio::AsBuf;
 use crate::virtio_vsock_device::VirtioVsockDevice;
 use crate::virtio_vsock_device::VirtioVsockHdr;
 use crate::virtio_vsock_device::VIRTIO_VSOCK_OP_RW;
+use crate::virtio_vsock_device::VIRTIO_VSOCK_OP_SHUTDOWN;
 use crate::vsock_impl;
 use crate::vsock_impl::get_vsock_device;
 use core::fmt;
+
+pub const RCV_SHUTDOWN: u32 = 1;
+pub const SEND_SHUTDOWN: u32 = 2;
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct VsockAddr {
@@ -140,12 +144,28 @@ impl VsockStream {
     fn get_free_port() -> u32 {
         40000
     }
+
+    pub fn shutdown(&mut self) {
+        let vsock_device = vsock_impl::get_vsock_device();
+        let mut package_header = VirtioVsockHdr::create_header(
+            self.src_addr.cid(),
+            self.dst_addr.cid(),
+            self.src_addr.port(),
+            self.dst_addr.port(),
+            VIRTIO_VSOCK_OP_SHUTDOWN,
+            1500,
+        );
+
+        package_header.set_flags(RCV_SHUTDOWN | SEND_SHUTDOWN);
+
+        vsock_device.send(&[package_header.as_buf()]);
+    }
 }
 
 // impl Read Write Flush for VsockStream
 
 impl Drop for VsockStream {
     fn drop(&mut self) {
-        todo!("VsockStream drop");
+        self.shutdown();
     }
 }

@@ -380,4 +380,7 @@ impl VirtioVsockHdr {
     pub fn set_len(&mut self, len: u32) {
         self.len = len
     }
+    pub fn set_flags(&mut self, flags: u32) {
+        self.flags = flags;
+    }
 }
