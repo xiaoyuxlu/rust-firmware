@@ -11,14 +11,17 @@ pub struct SocketError;
 use crate::virtio::AsBuf;
 use crate::virtio_vsock_device::VirtioVsockDevice;
 use crate::virtio_vsock_device::VirtioVsockHdr;
+use crate::virtio_vsock_device::VIRTIO_VSOCK_OP_RESPONSE;
 use crate::virtio_vsock_device::VIRTIO_VSOCK_OP_RW;
 use crate::virtio_vsock_device::VIRTIO_VSOCK_OP_SHUTDOWN;
+use crate::virtio_vsock_device::VSOCK_MTU;
 use crate::vsock_impl;
 use crate::vsock_impl::get_vsock_device;
 use core::fmt;
 
 pub const RCV_SHUTDOWN: u32 = 1;
 pub const SEND_SHUTDOWN: u32 = 2;
+pub const CID_ANY: u64 = 0xffffffff;
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct VsockAddr {
@@ -52,12 +55,29 @@ impl fmt::Debug for VsockAddr {
     }
 }
 
-pub struct VsockListener {}
+/// An iterator that infinitely accepts connections on a VsockListener.
+#[derive(Debug)]
+pub struct Incoming<'a> {
+    listener: &'a VsockListener,
+}
+
+impl<'a> Iterator for Incoming<'a> {
+    type Item = Result<VsockStream, SocketError>;
+
+    fn next(&mut self) -> Option<Result<VsockStream, SocketError>> {
+        Some(self.listener.accept().map(|p| p.0))
+    }
+}
+
+#[derive(Debug)]
+pub struct VsockListener {
+    bind_addr: VsockAddr,
+}
 
 impl VsockListener {
     /// Create a new VsockListener which is bound and listening on the socket address.
     pub fn bind(addr: &VsockAddr) -> Result<Self, SocketError> {
-        Ok(VsockListener {})
+        Ok(VsockListener { bind_addr: *addr })
     }
 
     /// Create a new VsockListener with specified cid and port.
@@ -67,7 +87,46 @@ impl VsockListener {
 
     /// Accept a new incoming connection from this listener.
     pub fn accept(&self) -> Result<(VsockStream, VsockAddr), SocketError> {
-        Err(SocketError)
+        let vsock_device = vsock_impl::get_vsock_device();
+        let mut header = VirtioVsockHdr::default();
+
+        loop {
+            let recvn = vsock_device
+                .recv(&[header.as_buf_mut()])
+                .map_err(|err| SocketError)?;
+            if (self.bind_addr.cid() == CID_ANY || self.bind_addr.cid() == header.dst_addr().cid())
+                && header.dst_port == self.bind_addr.port()
+            {
+                if !vsock_device.can_send() {
+                    return Err(SocketError);
+                }
+                let response_header = VirtioVsockHdr::create_header(
+                    vsock_device.get_cid(),
+                    header.src_addr().cid(),
+                    self.bind_addr.port(),
+                    header.src_port,
+                    VIRTIO_VSOCK_OP_RESPONSE,
+                    VSOCK_MTU,
+                );
+                let sendn = vsock_device
+                    .send(&[response_header.as_buf()])
+                    .map_err(|err| SocketError)?;
+                return Ok((
+                    VsockStream {
+                        dst_addr: header.src_addr(),
+                        src_addr: response_header.src_addr(),
+                        vsock_device,
+                    },
+                    header.src_addr(),
+                ));
+            } else {
+                log::info!("filter packet\n");
+            }
+        }
+    }
+
+    pub fn incoming(&self) -> Incoming {
+        Incoming { listener: self }
     }
 }
 
@@ -125,7 +184,7 @@ impl VsockStream {
             self.src_addr.port(),
             self.dst_addr.port(),
             VIRTIO_VSOCK_OP_RW,
-            1500,
+            VSOCK_MTU,
         );
 
         package_header.set_len(buf.len() as u32);
@@ -153,7 +212,7 @@ impl VsockStream {
             self.src_addr.port(),
             self.dst_addr.port(),
             VIRTIO_VSOCK_OP_SHUTDOWN,
-            1500,
+            VSOCK_MTU,
         );
 
         package_header.set_flags(RCV_SHUTDOWN | SEND_SHUTDOWN);

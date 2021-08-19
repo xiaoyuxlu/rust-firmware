@@ -9,6 +9,7 @@ use crate::virtio::consts::*;
 use crate::virtio::AsBuf;
 use crate::virtio::{VirtioError, VirtioTransport};
 use crate::virtqueue::VirtQueue;
+use crate::vsock::VsockAddr;
 use crate::{Error, Result};
 
 use crate::virtio::QUEUE_SIZE;
@@ -18,6 +19,8 @@ pub const QUEUE_TX: u16 = 1;
 pub const QUEUE_EVENT: u16 = 2;
 
 pub const VSOCK_STREAM: u16 = 1;
+
+pub const VSOCK_MTU: u32 = 1500;
 
 #[repr(C)]
 #[repr(align(64))]
@@ -196,7 +199,7 @@ impl<'a> VirtioVsockDevice<'a> {
             src_port,
             dst_port,
             VIRTIO_VSOCK_OP_REQUEST,
-            1500,
+            VSOCK_MTU,
         );
 
         let _res = self.send(&[request_header.as_buf()])?;
@@ -344,7 +347,7 @@ impl VirtioVsockHdr {
                 type_: 1,
                 op: VIRTIO_VSOCK_OP_RESPONSE,
                 flags: 0,
-                buf_alloc: 1500,
+                buf_alloc: VSOCK_MTU,
                 fwd_cnt: self.fwd_cnt,
             }
         } else {
@@ -382,5 +385,11 @@ impl VirtioVsockHdr {
     }
     pub fn set_flags(&mut self, flags: u32) {
         self.flags = flags;
+    }
+    pub fn src_addr(&self) -> VsockAddr {
+        VsockAddr::new(self.src_cid, self.src_port)
+    }
+    pub fn dst_addr(&self) -> VsockAddr {
+        VsockAddr::new(self.dst_cid, self.dst_port)
     }
 }

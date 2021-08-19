@@ -10,6 +10,7 @@ extern crate alloc;
 use rust_vsock_payload::virtio::VirtioTransport;
 use rust_vsock_payload::virtio_blk_device::VirtioBlockDevice;
 use rust_vsock_payload::virtio_pci::VirtioPciTransport;
+use rust_vsock_payload::vsock::VsockListener;
 
 mod device;
 mod heap;
@@ -202,6 +203,23 @@ fn test_vsock_device() {
 
     let mut stream = VsockStream::connect(&VsockAddr::new(2, 1234)).expect("connect error");
     stream.write(b"This is from client").expect("write error");
+    stream.shutdown();
+
+    let listener = VsockListener::bind(&VsockAddr::new(33, 1234)).unwrap();
+    for stream in listener.incoming() {
+        match stream {
+            Ok(mut stream) => loop {
+                let mut buf = [0u8; 1500];
+                let readn = stream.read(&mut buf[..]).expect("read error");
+                for b in &buf[0usize..readn] {
+                    rust_ipl_log::write_args(format_args!("{}", char::from(*b)))
+                }
+            },
+            Err(e) => {
+                log::info!("Error: {:?}", e);
+            }
+        }
+    }
 
     log::info!("virtio_vsock_device test done\n");
 }
