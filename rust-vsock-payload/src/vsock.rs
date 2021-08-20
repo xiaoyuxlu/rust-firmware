@@ -228,3 +228,24 @@ impl Drop for VsockStream {
         self.shutdown();
     }
 }
+
+pub trait VsockOps {
+    /// Addressing
+    fn get_local_cid(&self) -> u64;
+
+    /// Initial/tear-down vsock
+    fn init(&mut self) -> Result<(), SocketError>;
+
+    /// Connections
+    fn connect(&self, vsock_addr: VsockAddr) -> Result<(), SocketError>;
+
+    /// Stream
+    fn stream_bind(&self, vsock_addr: VsockAddr);
+    fn stream_has_data(&self);
+    fn stream_has_space(&self);
+    fn stream_read(&self, buf: &mut [u8]) -> Result<usize, SocketError>;
+    fn stream_write(&self, buf: &[u8]) -> Result<usize, SocketError>;
+
+    /// Shutdown
+    fn shutdown(&self) -> Result<(), SocketError>;
+}
