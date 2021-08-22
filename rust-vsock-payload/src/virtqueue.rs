@@ -137,6 +137,11 @@ impl<'a> VirtQueue<'a> {
         (self.queue_size - self.num_used) as usize
     }
 
+    /// The number of used descriptors.
+    pub fn used_desc(&self) -> usize {
+        self.num_used as usize
+    }
+
     /// Recycle descriptors in the list specified by head.
     ///
     /// This will push all linked descriptors at the front of the free list.

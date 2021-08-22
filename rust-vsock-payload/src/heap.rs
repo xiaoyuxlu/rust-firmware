@@ -2,11 +2,14 @@
 //
 // SPDX-License-Identifier: BSD-2-Clause-Patent
 
+#[cfg(not(test))]
 use linked_list_allocator::LockedHeap;
 
+#[cfg(not(test))]
 #[global_allocator]
 static HEAP_ALLOCATOR: LockedHeap = LockedHeap::empty();
 
+#[cfg(not(test))]
 /// Initialize the heap allocator.
 pub(super) fn init(heap_start: usize, heap_size: usize) {
     unsafe {
@@ -18,6 +21,7 @@ pub(super) fn init(heap_start: usize, heap_size: usize) {
     );
 }
 
+#[cfg(not(test))]
 #[alloc_error_handler]
 #[allow(clippy::empty_loop)]
 fn alloc_error(_info: core::alloc::Layout) -> ! {

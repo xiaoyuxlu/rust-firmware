@@ -16,3 +16,9 @@ bitflags = "1.2.1"
 volatile = "0.2"
 conquer-once = { version = "0.3.2", default-features = false }
 atomic_refcell = "0.1.7"
+
+managed = { version = "0.8", default-features = false, features = ["map"] }
+
+[features]
+std = ["managed/std"]
+alloc = ["managed/alloc"]

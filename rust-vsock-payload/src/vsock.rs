@@ -14,7 +14,7 @@ use crate::virtio_vsock_device::VirtioVsockHdr;
 use crate::virtio_vsock_device::VIRTIO_VSOCK_OP_RESPONSE;
 use crate::virtio_vsock_device::VIRTIO_VSOCK_OP_RW;
 use crate::virtio_vsock_device::VIRTIO_VSOCK_OP_SHUTDOWN;
-use crate::virtio_vsock_device::VSOCK_MTU;
+use crate::virtio_vsock_device::VSOCK_DEFAULT_RX_PKT_SIZE;
 use crate::vsock_impl;
 use crate::vsock_impl::get_vsock_device;
 use core::fmt;
@@ -106,7 +106,7 @@ impl VsockListener {
                     self.bind_addr.port(),
                     header.src_port,
                     VIRTIO_VSOCK_OP_RESPONSE,
-                    VSOCK_MTU,
+                    VSOCK_DEFAULT_RX_PKT_SIZE as u32,
                 );
                 let sendn = vsock_device
                     .send(&[response_header.as_buf()])
@@ -184,7 +184,7 @@ impl VsockStream {
             self.src_addr.port(),
             self.dst_addr.port(),
             VIRTIO_VSOCK_OP_RW,
-            VSOCK_MTU,
+            VSOCK_DEFAULT_RX_PKT_SIZE as u32,
         );
 
         package_header.set_len(buf.len() as u32);
@@ -212,7 +212,7 @@ impl VsockStream {
             self.src_addr.port(),
             self.dst_addr.port(),
             VIRTIO_VSOCK_OP_SHUTDOWN,
-            VSOCK_MTU,
+            VSOCK_DEFAULT_RX_PKT_SIZE as u32,
         );
 
         package_header.set_flags(RCV_SHUTDOWN | SEND_SHUTDOWN);

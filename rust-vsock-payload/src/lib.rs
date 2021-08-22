@@ -14,6 +14,7 @@ pub mod virtio_pci;
 pub mod virtio_vsock_device;
 pub mod virtqueue;
 pub use hal::*;
+pub mod ring_buffer;
 pub mod vsock;
 pub mod vsock_impl;
 
@@ -44,6 +45,16 @@ pub enum Error {
     IoError,
     /// Devide Error
     VirtioError(virtio::VirtioError),
+    /// No packet Error
+    PacketNotReady,
+    /// An operation cannot proceed because a buffer is empty or full.
+    Exhausted,
+    /// An incoming packet could not be recognized and was dropped.
+    /// E.g. an Ethernet packet with an unknown EtherType.
+    Unrecognized,
+    /// An incoming packet could not be parsed because some of its fields were out of bounds
+    /// of the received data.
+    Truncated,
 }
 
 /// Align `size` up to a page.
@@ -66,3 +77,6 @@ unsafe trait AsBuf: Sized {
         unsafe { core::slice::from_raw_parts_mut(self as *mut _ as _, size_of::<Self>()) }
     }
 }
+
+#[cfg(test)]
+mod test;

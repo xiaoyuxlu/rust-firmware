@@ -7,9 +7,11 @@
 #![feature(alloc_error_handler)]
 
 extern crate alloc;
+use rust_vsock_payload::virtio::AsBuf;
 use rust_vsock_payload::virtio::VirtioTransport;
 use rust_vsock_payload::virtio_blk_device::VirtioBlockDevice;
 use rust_vsock_payload::virtio_pci::VirtioPciTransport;
+use rust_vsock_payload::virtio_vsock_device::VirtioVsockHdr;
 use rust_vsock_payload::vsock::VsockListener;
 
 mod device;
@@ -38,6 +40,7 @@ pub extern "win64" fn _start(hob_list: *const u8, _reserved_param: usize) -> ! {
     if let uefi_pi::hob_lib::HobEnums::MemoryAllocation(memory_allocation) = hob {
         let half_size = (memory_allocation.alloc_descriptor.memory_length / 2) as usize;
         let memory_base_address = memory_allocation.alloc_descriptor.memory_base_address;
+        #[cfg(not(test))]
         heap::init(memory_base_address as usize, half_size as usize);
         rust_vsock_payload::virtio_impl_init(
             memory_base_address as usize + half_size,
@@ -49,7 +52,8 @@ pub extern "win64" fn _start(hob_list: *const u8, _reserved_param: usize) -> ! {
     init_platform();
     // test_block_device();
     device::init_vsock_device();
-    test_vsock_device();
+    // test_vsock_device();
+    test_vsock_device_read_write();
     // dump_pcis();
 
     loop {}
@@ -222,4 +226,25 @@ fn test_vsock_device() {
     }
 
     log::info!("virtio_vsock_device test done\n");
+}
+
+fn test_vsock_device_read_write() {
+    let vsock_device = device::get_vsock_device();
+    let recv_buffer = &mut [0u8; 1500];
+    loop {
+        if vsock_device.can_recv() {
+            if let Ok(hdr) = vsock_device.recv_pkt() {
+                let mut hdr = VirtioVsockHdr::default();
+                hdr.as_buf_mut().copy_from_slice(&recv_buffer[0..44]);
+                log::info!("recv_buff: {:?}\n", hdr);
+            }
+        }
+        if vsock_device.rx_need_more_buffers().expect("err") {
+            vsock_device.rx_fill(&[recv_buffer]).expect("rx_fill error");
+        }
+        if vsock_device.can_send() {
+            log::info!("vsock_device can send\n");
+        }
+        rust_vsock_payload::sleep(1);
+    }
 }

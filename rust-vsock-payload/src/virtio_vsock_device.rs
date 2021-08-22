@@ -12,6 +12,7 @@ use crate::virtqueue::VirtQueue;
 use crate::vsock::VsockAddr;
 use crate::{Error, Result};
 
+use crate::ring_buffer::RingBuffer;
 use crate::virtio::QUEUE_SIZE;
 
 pub const QUEUE_RX: u16 = 0;
@@ -20,7 +21,7 @@ pub const QUEUE_EVENT: u16 = 2;
 
 pub const VSOCK_STREAM: u16 = 1;
 
-pub const VSOCK_MTU: u32 = 1500;
+pub const VSOCK_DEFAULT_RX_PKT_SIZE: usize = 1024 * 64;
 
 #[repr(C)]
 #[repr(align(64))]
@@ -148,6 +149,36 @@ impl<'a> VirtioVsockDevice<'a> {
         // Ok(0)
     }
 
+    /// Fill rx virtqueue with buffers
+    pub fn rx_fill(&self, bufs: &[&mut [u8]]) -> Result<u16> {
+        log::info!("rx fill\n");
+        let mut rx = self.rx.borrow_mut();
+        rx.add(&[], bufs)
+    }
+
+    /// Is there avaiable descriptor in the Rx
+    pub fn rx_need_more_buffers(&self) -> Result<bool> {
+        let rx = self.rx.borrow_mut();
+        log::info!(
+            "rx.avaiable_desc {}, rx.used_desc {}\n",
+            rx.available_desc(),
+            rx.used_desc()
+        );
+        Ok(rx.used_desc() < 1)
+    }
+
+    /// Recv pkt
+    pub fn recv_pkt(&self) -> Result<VirtioVsockHdr> {
+        let mut rx = self.rx.borrow_mut();
+        if rx.can_pop() {
+            let (_index, len) = rx.pop_used()?;
+            log::info!("recv_pkt - len: {}\n", len);
+            Ok(VirtioVsockHdr::default())
+        } else {
+            Err(Error::PacketNotReady)
+        }
+    }
+
     /// test a packet.
     pub fn test_server(&self) {
         log::info!("start listen 33:1234\n");
@@ -199,7 +230,7 @@ impl<'a> VirtioVsockDevice<'a> {
             src_port,
             dst_port,
             VIRTIO_VSOCK_OP_REQUEST,
-            VSOCK_MTU,
+            VSOCK_DEFAULT_RX_PKT_SIZE as u32,
         );
 
         let _res = self.send(&[request_header.as_buf()])?;
@@ -331,7 +362,7 @@ impl VirtioVsockHdr {
             type_: 1u16.to_le(),
             op: 1u16.to_le(),
             flags: 0,
-            buf_alloc: 1500u32.to_le(),
+            buf_alloc: VSOCK_DEFAULT_RX_PKT_SIZE as u32,
             fwd_cnt: 0,
         }
     }
@@ -347,7 +378,7 @@ impl VirtioVsockHdr {
                 type_: 1,
                 op: VIRTIO_VSOCK_OP_RESPONSE,
                 flags: 0,
-                buf_alloc: VSOCK_MTU,
+                buf_alloc: VSOCK_DEFAULT_RX_PKT_SIZE as u32,
                 fwd_cnt: self.fwd_cnt,
             }
         } else {

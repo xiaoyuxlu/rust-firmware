@@ -63,14 +63,16 @@ extern "C" {
 
 pub fn msleep(msecond: usize) -> u128 {
     let mut c = 0;
-    for i in 1..3500000u128 * (msecond as u128) {
+    for i in 1..2500000u128 * (msecond as u128) {
         let b = i % 2;
         c += b;
     }
     c
 }
 
-pub fn sleep(_second: usize) {
-    // let c = msleep(second * 1000);
-    // log::debug!("c {}\n", c)
+pub fn sleep(second: usize) {
+    let c = msleep(second * 1000);
+    if c != 0 {
+        rust_ipl_log::write_args(format_args!("."))
+    }
 }
